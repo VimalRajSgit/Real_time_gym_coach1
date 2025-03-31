@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Fitness Trainer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>AI Fitness Trainer</h1>
+        <h2>Plan Your Sweat Session</h2>
+        
+        <div class="form-section">
+            <label for="exercise">Pick Your Move:</label>
+            <select id="exercise" name="exercise">
+                <option value="push-up">Push-ups</option>
+                <option value="pull-up">Pull-ups</option>
+                <option value="squat">Squats</option>
+                <option value="sit-up">Sit-ups</option>
+                <option value="walk">Walk</option>
+            </select>
+            
+            <label for="reps">Reps Goal:</label>
+            <input type="number" id="reps" name="reps" min="1" value="10" placeholder="e.g., 10">
+            
+            <button onclick="addExercise()">Add to Workout</button>
+        </div>
+        
+        <h3>Your Gym Plan:</h3>
+        <ul id="plan-list">
+            {% for exercise, reps in plans.items() %}
+                <li><span class="exercise">{{ exercise }}</span>: <span class="reps">{{ reps }} reps</span></li>
+            {% endfor %}
+        </ul>
+        
+        <button onclick="resetPlan()" class="reset-btn">Reset Plan</button>
+        <p id="status">Status: Ready to Crush It!</p>
+    </div>
+
+    <script>
+        async function addExercise() {
+            const exercise = document.getElementById('exercise').value;
+            const reps = document.getElementById('reps').value;
+            const response = await fetch('/add_exercise', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ exercise, reps })
+            });
+            const data = await response.json();
+            document.getElementById('status').textContent = `Status: ${data.message}`;
+            updatePlan();
+        }
+
+        async function resetPlan() {
+            const response = await fetch('/reset_plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            document.getElementById('status').textContent = `Status: ${data.message}`;
+            updatePlan();
+        }
+
+        async function updatePlan() {
+            const response = await fetch('/get_plan');
+            const plans = await response.json();
+            const planList = document.getElementById('plan-list');
+            planList.innerHTML = '';
+            for (const [exercise, reps] of Object.entries(plans)) {
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="exercise">${exercise}</span>: <span class="reps">${reps} reps</span>`;
+                planList.appendChild(li);
+            }
+        }
+    </script>
+</body>
+</html>
