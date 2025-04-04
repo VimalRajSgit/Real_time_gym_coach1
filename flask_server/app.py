@@ -38,11 +38,11 @@ def reset_plan():
 
 def start_fitness_app():
     """Function to start m.py as a separate process"""
-    # Path to m.py in the tkinter_client folder
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # C:\projects\fitness_trainer_app
+    
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  
     m_py_path = os.path.join(root_dir, 'tkinter_client', 'm.py')
     
-    # Run m.py as a separate process from its own directory
+    
     subprocess.Popen(['python', m_py_path], cwd=os.path.join(root_dir, 'tkinter_client'))
 
 if __name__ == '__main__':
