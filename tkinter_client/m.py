@@ -19,15 +19,12 @@ engine.setProperty('rate', 150)
 engine.setProperty('volume', 0.9)
 speech_lock = threading.Lock()
 
-# Flask server URL
 FLASK_SERVER_URL = "http://localhost:5000"
 
-# MediaPipe setup
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7, static_image_mode=False)
 mp_drawing = mp.solutions.drawing_utils
 
-# Utility functions
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
     radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
@@ -41,7 +38,7 @@ def detection_body_part(landmarks, body_part_name):
         landmarks[mp_pose.PoseLandmark[body_part_name].value].visibility
     ]
 
-# BodyPartAngle class (unchanged)
+
 class BodyPartAngle:
     def __init__(self, landmarks):
         self.landmarks = landmarks
@@ -77,7 +74,7 @@ class BodyPartAngle:
         avg_shoulder = [(l_shoulder[0] + r_shoulder[0]) / 2, (l_shoulder[1] + r_shoulder[1]) / 2]
         return calculate_angle(l_hip, avg_shoulder, [avg_shoulder[0], avg_shoulder[1] - 0.1])
 
-# TypeOfExercise class with stricter rep counting
+
 class TypeOfExercise(BodyPartAngle):
     def __init__(self, landmarks):
         super().__init__(landmarks)
@@ -99,7 +96,7 @@ class TypeOfExercise(BodyPartAngle):
         left_elbow = detection_body_part(self.landmarks, "LEFT_ELBOW")
         right_elbow = detection_body_part(self.landmarks, "RIGHT_ELBOW")
         avg_shoulder_y = (left_elbow[1] + right_elbow[1]) / 2
-        # Stricter: Nose must go well above shoulders (0.05) and fully below (-0.05)
+        
         if status and nose[1] > avg_shoulder_y + 0.05:
             status = False
         elif not status and nose[1] < avg_shoulder_y - 0.05:
@@ -111,7 +108,7 @@ class TypeOfExercise(BodyPartAngle):
         left_leg_angle = self.angle_of_the_left_leg()
         right_leg_angle = self.angle_of_the_right_leg()
         avg_leg_angle = (left_leg_angle + right_leg_angle) // 2
-        # Stricter: Must go below 60° (down) and above 170° (up)
+        
         if status and avg_leg_angle < 60:
             status = False
         elif not status and avg_leg_angle > 170:
@@ -122,7 +119,7 @@ class TypeOfExercise(BodyPartAngle):
     def walk(self, counter, status):
         right_knee = detection_body_part(self.landmarks, "RIGHT_KNEE")
         left_knee = detection_body_part(self.landmarks, "LEFT_KNEE")
-        # Stricter: Require a wider step (0.2 difference in x-position)
+        
         if status and left_knee[0] > right_knee[0] + 0.2:
             status = False
         elif not status and left_knee[0] < right_knee[0] - 0.2:
@@ -132,7 +129,7 @@ class TypeOfExercise(BodyPartAngle):
 
     def sit_up(self, counter, status):
         angle = self.angle_of_the_abdomen()
-        # Stricter: Must go below 45° (up) and above 115° (down)
+        
         if status and angle < 45:
             status = False
         elif not status and angle > 115:
@@ -144,7 +141,7 @@ class TypeOfExercise(BodyPartAngle):
         left_arm_angle = self.angle_of_the_left_arm()
         right_arm_angle = self.angle_of_the_right_arm()
         avg_arm_angle = (left_arm_angle + right_arm_angle) // 2
-        # Stricter: Must go below 50° (up) and above 150° (down)
+        
         if status and avg_arm_angle < 50:
             status = False
         elif not status and avg_arm_angle > 150:
@@ -156,7 +153,7 @@ class TypeOfExercise(BodyPartAngle):
         left_arm_angle = self.angle_of_the_left_arm()
         right_arm_angle = self.angle_of_the_right_arm()
         avg_arm_angle = (left_arm_angle + right_arm_angle) // 2
-        # Stricter: Must go above 170° (extended) and below 80° (bent)
+        
         if status and avg_arm_angle > 170:
             status = False
         elif not status and avg_arm_angle < 80:
@@ -181,7 +178,7 @@ class TypeOfExercise(BodyPartAngle):
             return self.tricep_curl(counter, status)
         return [counter, status]
 
-# RepCounter class (unchanged)
+
 class RepCounter:
     def __init__(self):
         self.counter = 0
@@ -200,7 +197,7 @@ class RepCounter:
             mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
         return self.counter
 
-# FitnessTrainerApp class (unchanged except for stricter rep counting via TypeOfExercise)
+
 class FitnessTrainerApp:
     def __init__(self, root):
         self.root = root
