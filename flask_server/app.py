@@ -22,7 +22,7 @@ def add_exercise():
     reps = int(data.get('reps', 0))
     if exercise and reps > 0:
         workout_plans[exercise] = reps
-        # Launch m.py in a new process each time a new exercise is added
+        
         threading.Thread(target=start_fitness_app, daemon=True).start()
         return jsonify({"status": "success", "message": f"Added {reps} {exercise}s"})
     return jsonify({"status": "error", "message": "Invalid exercise or reps"}), 400
