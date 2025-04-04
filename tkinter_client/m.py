@@ -41,7 +41,7 @@ def detection_body_part(landmarks, body_part_name):
         landmarks[mp_pose.PoseLandmark[body_part_name].value].visibility
     ]
 
-# BodyPartAngle and TypeOfExercise classes
+# BodyPartAngle class (unchanged)
 class BodyPartAngle:
     def __init__(self, landmarks):
         self.landmarks = landmarks
@@ -77,6 +77,7 @@ class BodyPartAngle:
         avg_shoulder = [(l_shoulder[0] + r_shoulder[0]) / 2, (l_shoulder[1] + r_shoulder[1]) / 2]
         return calculate_angle(l_hip, avg_shoulder, [avg_shoulder[0], avg_shoulder[1] - 0.1])
 
+# TypeOfExercise class with stricter rep counting
 class TypeOfExercise(BodyPartAngle):
     def __init__(self, landmarks):
         super().__init__(landmarks)
@@ -85,10 +86,11 @@ class TypeOfExercise(BodyPartAngle):
         left_arm_angle = self.angle_of_the_left_arm()
         right_arm_angle = self.angle_of_the_right_arm()
         avg_arm_angle = (left_arm_angle + right_arm_angle) // 2
-        if status and avg_arm_angle < 70:
-            counter += 1
+        # Stricter: Must go below 60° (down) and above 170° (up)
+        if status and avg_arm_angle < 60:
             status = False
-        elif not status and avg_arm_angle > 160:
+        elif not status and avg_arm_angle > 170:
+            counter += 1
             status = True
         return [counter, status]
 
@@ -97,10 +99,11 @@ class TypeOfExercise(BodyPartAngle):
         left_elbow = detection_body_part(self.landmarks, "LEFT_ELBOW")
         right_elbow = detection_body_part(self.landmarks, "RIGHT_ELBOW")
         avg_shoulder_y = (left_elbow[1] + right_elbow[1]) / 2
-        if status and nose[1] > avg_shoulder_y:
-            counter += 1
+        # Stricter: Nose must go well above shoulders (0.05) and fully below (-0.05)
+        if status and nose[1] > avg_shoulder_y + 0.05:
             status = False
-        elif not status and nose[1] < avg_shoulder_y:
+        elif not status and nose[1] < avg_shoulder_y - 0.05:
+            counter += 1
             status = True
         return [counter, status]
 
@@ -108,30 +111,56 @@ class TypeOfExercise(BodyPartAngle):
         left_leg_angle = self.angle_of_the_left_leg()
         right_leg_angle = self.angle_of_the_right_leg()
         avg_leg_angle = (left_leg_angle + right_leg_angle) // 2
-        if status and avg_leg_angle < 70:
-            counter += 1
+        # Stricter: Must go below 60° (down) and above 170° (up)
+        if status and avg_leg_angle < 60:
             status = False
-        elif not status and avg_leg_angle > 160:
+        elif not status and avg_leg_angle > 170:
+            counter += 1
             status = True
         return [counter, status]
 
     def walk(self, counter, status):
         right_knee = detection_body_part(self.landmarks, "RIGHT_KNEE")
         left_knee = detection_body_part(self.landmarks, "LEFT_KNEE")
-        if status and left_knee[0] > right_knee[0]:
-            counter += 1
+        # Stricter: Require a wider step (0.2 difference in x-position)
+        if status and left_knee[0] > right_knee[0] + 0.2:
             status = False
-        elif not status and left_knee[0] < right_knee[0]:
+        elif not status and left_knee[0] < right_knee[0] - 0.2:
             counter += 1
             status = True
         return [counter, status]
 
     def sit_up(self, counter, status):
         angle = self.angle_of_the_abdomen()
-        if status and angle < 55:
-            counter += 1
+        # Stricter: Must go below 45° (up) and above 115° (down)
+        if status and angle < 45:
             status = False
-        elif not status and angle > 105:
+        elif not status and angle > 115:
+            counter += 1
+            status = True
+        return [counter, status]
+
+    def bicep_curl(self, counter, status):
+        left_arm_angle = self.angle_of_the_left_arm()
+        right_arm_angle = self.angle_of_the_right_arm()
+        avg_arm_angle = (left_arm_angle + right_arm_angle) // 2
+        # Stricter: Must go below 50° (up) and above 150° (down)
+        if status and avg_arm_angle < 50:
+            status = False
+        elif not status and avg_arm_angle > 150:
+            counter += 1
+            status = True
+        return [counter, status]
+
+    def tricep_curl(self, counter, status):
+        left_arm_angle = self.angle_of_the_left_arm()
+        right_arm_angle = self.angle_of_the_right_arm()
+        avg_arm_angle = (left_arm_angle + right_arm_angle) // 2
+        # Stricter: Must go above 170° (extended) and below 80° (bent)
+        if status and avg_arm_angle > 170:
+            status = False
+        elif not status and avg_arm_angle < 80:
+            counter += 1
             status = True
         return [counter, status]
 
@@ -146,8 +175,13 @@ class TypeOfExercise(BodyPartAngle):
             return self.walk(counter, status)
         elif exercise_type == "sit-up":
             return self.sit_up(counter, status)
+        elif exercise_type == "bicep-curl":
+            return self.bicep_curl(counter, status)
+        elif exercise_type == "tricep-curl":
+            return self.tricep_curl(counter, status)
         return [counter, status]
 
+# RepCounter class (unchanged)
 class RepCounter:
     def __init__(self):
         self.counter = 0
@@ -166,6 +200,7 @@ class RepCounter:
             mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
         return self.counter
 
+# FitnessTrainerApp class (unchanged except for stricter rep counting via TypeOfExercise)
 class FitnessTrainerApp:
     def __init__(self, root):
         self.root = root
@@ -184,7 +219,7 @@ class FitnessTrainerApp:
         self.rep_counter = RepCounter()
         self.last_coach_update = 0
         self.frame_queue = Queue(maxsize=1)
-        self.last_feedback = ""  # Track last feedback to avoid repetition
+        self.last_feedback = ""
 
         self.cap = None
         self.is_running = False
@@ -232,7 +267,7 @@ class FitnessTrainerApp:
                     self.completed_reps[self.current_exercise] = 0
                     self.add_chat_message("Coach", f"Let's start with {self.current_exercise}s!")
                 else:
-                    self.add_chat_message("Coach", "No workout plan set. Please configure one in the web interface.")
+                    self.add_chat_message("Coach", "No workout plan set yet. Waiting for exercises...")
             else:
                 self.add_chat_message("Coach", "Error fetching workout plan.")
         except Exception as e:
@@ -302,7 +337,7 @@ class FitnessTrainerApp:
                         if results.pose_landmarks:
                             exercise = TypeOfExercise(results.pose_landmarks.landmark)
                             feedback = self.get_real_time_coaching(exercise)
-                            if feedback and feedback != self.last_feedback:  # Only update if different
+                            if feedback and feedback != self.last_feedback:
                                 self.root.after(0, lambda: self.add_chat_message("Coach", feedback))
                                 self.last_feedback = feedback
                         self.last_coach_update = current_time
@@ -316,23 +351,20 @@ class FitnessTrainerApp:
                             self.completed_reps.pop(self.current_exercise, None)
                             if self.workout_plan:
                                 self.current_exercise = next(iter(self.workout_plan))
-                                self.target_reps = self.workout_plan[self.current_exercise]
+                                self.target_reps = self.workout_plan(self.current_exercise)
                                 self.rep_counter.reset()
                                 self.add_chat_message("Coach", f"Next up: {self.current_exercise}s!")
                             else:
                                 self.current_exercise = None
                                 self.add_chat_message("Coach", "Workout complete! Well done!")
                         else:
-                            if remaining ==  5:
+                            if remaining == 5:
                                 self.add_chat_message("Coach", f"Still 5 more")
-                     
-                            
                             elif remaining == 1:
                                 self.add_chat_message("Coach", "Last rep!")
 
                     if self.current_exercise:
                         count = self.completed_reps.get(self.current_exercise, 0)
-                        # Improved font and moved to top-left corner
                         cv2.putText(frame, f"Reps: {count}", (10, 20), cv2.FONT_HERSHEY_PLAIN, 0.7, (0, 255, 0), 1)
                         cv2.putText(frame, f"Exercise: {self.current_exercise}", (10, 40), cv2.FONT_HERSHEY_PLAIN, 0.7, (0, 255, 0), 1)
 
@@ -356,50 +388,121 @@ class FitnessTrainerApp:
             left_arm = exercise.angle_of_the_left_arm()
             right_arm = exercise.angle_of_the_right_arm()
             avg_arm_angle = (left_arm + right_arm) // 2
-            if 70 <= avg_arm_angle <= 160:
-                return "Complete the full push-up! Go all the way down and up!"
-            elif avg_arm_angle < 70:
-                return "Good depth! Now push up fully!"
-            elif avg_arm_angle > 160:
-                return "Lower yourself more! Get those elbows bent!"
+            abdomen_angle = exercise.angle_of_the_abdomen()
+            if abs(left_arm - right_arm) > 20:
+                return "Keep both arms even!"
+            elif avg_arm_angle > 170:
+                return "Lower yourself more!"
+            elif avg_arm_angle < 60:
+                return "Push up strong!"
+            elif 60 <= avg_arm_angle <= 100:
+                return "Go deeper!"
+            elif abdomen_angle > 160:
+                return "Tighten that core!"
+            elif abdomen_angle < 120:
+                return "Don’t arch your back!"
 
         elif self.current_exercise == "squat":
             left_leg = exercise.angle_of_the_left_leg()
             right_leg = exercise.angle_of_the_right_leg()
             avg_leg_angle = (left_leg + right_leg) // 2
-            if 70 <= avg_leg_angle <= 160:
-                return "Go for a full squat! Down lower and back up straight!"
-            elif avg_leg_angle < 70:
-                return "Nice depth! Now stand up fully!"
-            elif avg_leg_angle > 160:
-                return "Squat deeper! Bend those knees more!"
+            abdomen_angle = exercise.angle_of_the_abdomen()
+            if abs(left_leg - right_leg) > 20:
+                return "Even out those legs!"
+            elif avg_leg_angle > 170:
+                return "Bend your knees more!"
+            elif 120 <= avg_leg_angle <= 170:
+                return "Squat lower!"
+            elif avg_leg_angle < 60:
+                return "Stand tall!"
+            elif 60 <= avg_leg_angle <= 100:
+                return "Push those hips back!"
+            elif abdomen_angle < 140:
+                return "Keep your back straight!"
+            elif abdomen_angle > 170:
+                return "Engage your core!"
 
         elif self.current_exercise == "pull-up":
             nose = detection_body_part(exercise.landmarks, "NOSE")
             left_elbow = detection_body_part(exercise.landmarks, "LEFT_ELBOW")
             right_elbow = detection_body_part(exercise.landmarks, "RIGHT_ELBOW")
             avg_shoulder_y = (left_elbow[1] + right_elbow[1]) / 2
-            if nose[1] > avg_shoulder_y:
-                return "get u r chin above the bar"
+            left_arm = exercise.angle_of_the_left_arm()
+            right_arm = exercise.angle_of_the_right_arm()
+            if nose[1] > avg_shoulder_y + 0.05:
+                return "Chin up higher!"
+            elif nose[1] < avg_shoulder_y - 0.05:
+                return "Drop smooth!"
+            elif abs(left_elbow[0] - right_elbow[0]) > 0.2:
+                return "Align elbows!"
+            elif left_arm < 60 or right_arm < 60:
+                return "Pull harder!"
+            elif left_arm > 140 or right_arm > 140:
+                return "Bend those arms more!"
             else:
-                return "Extend those arms!"
+                return "Solid form!"
 
         elif self.current_exercise == "sit-up":
             abdomen_angle = exercise.angle_of_the_abdomen()
-            if 55 <= abdomen_angle <= 105:
-                return "Do a full sit-up! All the way up and down!"
-            elif abdomen_angle < 55:
-                return "Good lift! Now lower back down smoothly!"
-            elif abdomen_angle > 105:
-                return "Sit up higher! Crunch that core!"
+            left_hip = detection_body_part(exercise.landmarks, "LEFT_HIP")
+            right_hip = detection_body_part(exercise.landmarks, "RIGHT_HIP")
+            if abs(left_hip[1] - right_hip[1]) > 0.1:
+                return "Hips stay level!"
+            elif abdomen_angle > 115:
+                return "Crunch harder!"
+            elif 80 <= abdomen_angle <= 115:
+                return "Lift higher!"
+            elif abdomen_angle < 45:
+                return "Nice one!"
+            elif 45 <= abdomen_angle <= 80:
+                return "Push through!"
+            else:
+                return "Keep it steady!"
 
         elif self.current_exercise == "walk":
             right_knee = detection_body_part(exercise.landmarks, "RIGHT_KNEE")
-            left_knee = detection_body_part(exercise.landmarks, "LEFT_KNEE")
-            if abs(right_knee[0] - left_knee[0]) < 0.1:
-                return "Take bigger steps! Swing those legs!"
+            left_knee = detection_body_part(self.landmarks, "LEFT_KNEE")
+            left_ankle = detection_body_part(self.landmarks, "LEFT_ANKLE")
+            right_ankle = detection_body_part(self.landmarks, "RIGHT_ANKLE")
+            abdomen_angle = exercise.angle_of_the_abdomen()
+            if abs(right_knee[0] - left_knee[0]) < 0.2:
+                return "Step wider!"
+            elif abs(right_ankle[1] - left_ankle[1]) < 0.05:
+                return "Lift those feet!"
+            elif right_knee[0] > left_knee[0] + 0.2:
+                return "Swing that left leg!"
+            elif left_knee[0] > right_knee[0] + 0.2:
+                return "Move that right leg!"
+            elif abdomen_angle < 150:
+                return "Stand tall!"
             else:
-                return "Good stride! Keep the pace steady!"
+                return "Nice stride!"
+
+        elif self.current_exercise == "bicep-curl":
+            left_arm = exercise.angle_of_the_left_arm()
+            right_arm = exercise.angle_of_the_right_arm()
+            avg_arm_angle = (left_arm + right_arm) // 2
+            if avg_arm_angle > 150:
+                return "Curl those arms up!"
+            elif 90 <= avg_arm_angle <= 150:
+                return "Lift higher!"
+            elif avg_arm_angle < 50:
+                return "Lower smooth!"
+            elif 50 <= avg_arm_angle <= 90:
+                return "Full curl!"
+
+        elif self.current_exercise == "tricep-curl":
+            left_arm = exercise.angle_of_the_left_arm()
+            right_arm = exercise.angle_of_the_right_arm()
+            avg_arm_angle = (left_arm + right_arm) // 2
+            if avg_arm_angle < 80:
+                return "Extend those arms!"
+            elif 80 <= avg_arm_angle <= 130:
+                return "Push further!"
+            elif avg_arm_angle > 170:
+                return "Bend back down!"
+            elif 130 <= avg_arm_angle <= 170:
+                return "Full extension!"
 
         return None
 
